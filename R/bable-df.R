@@ -123,10 +123,18 @@ format.bable <- function(x, n, width) {
     top_half <- lapply(x[est_cols], `[`, seq_len(n))
     top_half <- lapply(top_half, function(x) {
       if(inherits(x, "list"))
-        format(x, width = )
+        format(x, width = avail_per)
+      else
+        format(x)
     })
 
+    rows <- format(c("", seq_len(n)))
+    colon <- format(c("", rep(": ", n)))
 
+    out <- c(list(paste0(seq_len(n), rep(":  ", n))), top_half)
+    out <- mapply(function(x,y,z){c(x,y,z)}, c("",col_nms), c("", col_cls), out, SIMPLIFY = F) |> lapply(format, justify = "right")
+    cat(do.call("paste",args = c(out, sep = " ", collapse = "\n")),"\n")
+    return()
   }
 
   dat_vis <- lapply(x[est_cols], `[`, seq_len(if(short_vis) n else n %/% 2))
