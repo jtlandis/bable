@@ -93,81 +93,165 @@ print.bable <- function(x, n = 12, width = 50, min = 4, max = 10) {
 }
 
 
-format.bable <- function(x, n, width) {
-
-  browser()
-
-  obs <- nrow(x)
-  col <- length(x)
-  info_header <- paste(sep = "", "A bable with ", obs, " observation", if(obs>1) "s", " and ", col, " column", if(col>1) "s", "\n")
-  cat(info_header)
-  cl <- class(x)
-  nrows <- nrow(x)
-  short_vis <- F
-  if (nrows<n) {
-    short_vis <- T
-    n <- nrows
+format.bable <- function(x, n = 12, width = 80L) {
+  
+  .dim <- dim(x)
+  .obs <- .dim[1L]
+  .col <- .dim[2L]
+  .nms <- names(x)
+  cat("# A bable with ", .obs,
+      " observation", if(.obs>1L) "s" else "",
+      " and ", .col, " column",
+      if(.col>1L) "s" else "", "\n", sep = "")
+  
+  
+  short_vis <- FALSE
+  if (.obs <= n) {
+    short_vs <- TRUE
+    n <- .obs
   }
-  x <- as.list(x)
-
-  widths <- cumsum(nchar(names(x))+2) + 4
-  est_cols <- seq_len(max(which(widths<width)))
-  avail_width <- width - 4
-  avail_per <- avail_width %/% max(est_cols)
-
-  col_nms <- names(x)[est_cols]
-  col_cls <- mapply(class_abbrv,x = x, width = avail_per)
-
+  
+  lst <- as.list(x)
+  
   if (short_vis) {
-
-    top_half <- lapply(x[est_cols], `[`, seq_len(n))
-    top_half <- lapply(top_half, function(x) {
-      if(inherits(x, "list"))
-        format(x, width = avail_per)
-      else
-        format(x)
-    })
-
-    rows <- format(c("", seq_len(n)))
-    colon <- format(c("", rep(": ", n)))
-
-    out <- c(list(paste0(seq_len(n), rep(":  ", n))), top_half)
-    out <- mapply(function(x,y,z){c(x,y,z)}, c("",col_nms), c("", col_cls), out, SIMPLIFY = F) |> lapply(format, justify = "right")
-    cat(do.call("paste",args = c(out, sep = " ", collapse = "\n")),"\n")
-    return()
+    data_sub <- lst
+    .rows <- format(c("","", paste0(seq_len(n), ": ")), justify = "right")
+  } else {
+    head_n <- n %/% 2
+    tail_n <- n - head_n
+    tail_seq <- rev(seq_len(tail_n))
+    data_sub <- lapply(lst, `[`, c(seq_len(head_n), .obs + 1L - tail_seq))
+    .rows <- format(c("", "",
+                      paste0(
+                        format(c(seq_len(head_n),
+                                 format(c(paste0("n-", tail_seq[-1L]), "n"), justify = "left")),
+                               justify = "right"),
+                        ":"
+                      )), justify = "right")
   }
-
-  dat_vis <- lapply(x[est_cols], `[`, seq_len(if(short_vis) n else n %/% 2))
-
-  lst <- vector('list', length(dat_vis))
-  nms <- names(dat_vis)
-  for (i in seq_len(max(est_cols))) {
-    dat <- dat_vis[[i]]
-    if (inherits(dat, 'list')) {
-      dat <- format(dat, width = min(c(width, nchar(header))))
-    } else {
-      dat <- format(dat)
+  
+  w_avail <- width - max(nchar(.rows)) - 1L
+  
+  out <- list()
+  
+  for (i in seq_len(.col)) {
+    out[[.nms[i]]] <- format(c(.nms[i], class_abbrv(data_sub[[i]]),
+                  format(data_sub[[i]], justify = "right")), justify = "right")
+    w_avail <- w_avail - max(nchar(out[[i]])) - 2L
+    
+    if (w_avail < 0) {
+      out <- out[-length(out)]
+      break
     }
-    lst[[i]] <- format(c(nms[i], dat))
   }
-
-
-  rows <- format(c("", paste0(rownames(dat_vis))))
-  colon <- format(c("", rep(": ", nrow(dat_vis))))
-
-
-  out <- c(list(paste0(rows, colon)), lst)
-  out[[length(out)]] <- paste0(out[[length(out)]],"\n")
-
-  chr <- do.call(paste, c(out, list(sep = " ")))
-
-  cat(chr, sep ="")
-  if (nrows>nrow(dat_vis)){
-    cat("...\n")
+  
+  
+  
+  body <- c(list(.rows), out)
+  
+  if (!short_vis) {
+    body <- lapply(body,
+                   function(x, after) {
+                     format(c(x[1L:after],
+                              "...", x[(after + 1L):(length(x))]),
+                            justify = "centre")},
+                   after = head_n + 2L)
   }
-
-
+  
+  body <- do.call("paste", c(body, list(sep = "  ", collapse = "\n")))
+  
+  cat(body, "\n")
+  
+  footer_data <- data_sub[setdiff(.nms, names(out))]
+  .remain <- length(footer_data)
+  if (.remain > 0) {
+    footer <- paste0("# ... with ", .remain, " more variable", if(.remain>1) "s" else "", ":\n# ")
+    footer <- c(footer,
+                paste(names(footer_data), vapply(footer_data, class_abbrv, character(1)), collapse = ", "))
+    cat(footer, "\n")
+  }
+  
+  
+  invisible(x)
+  
 }
+
+
+# format.bable <- function(x, n, width) {
+# 
+#   browser()
+# 
+#   obs <- nrow(x)
+#   col <- length(x)
+#   info_header <- paste(sep = "", "A bable with ", obs, " observation", if(obs>1) "s", " and ", col, " column", if(col>1) "s", "\n")
+#   cat(info_header)
+#   cl <- class(x)
+#   nrows <- nrow(x)
+#   short_vis <- F
+#   if (nrows<n) {
+#     short_vis <- T
+#     n <- nrows
+#   }
+#   x <- as.list(x)
+# 
+#   widths <- cumsum(nchar(names(x))+2) + 4
+#   est_cols <- seq_len(max(which(widths<width)))
+#   avail_width <- width - 4
+#   avail_per <- avail_width %/% max(est_cols)
+# 
+#   col_nms <- names(x)[est_cols]
+#   col_cls <- mapply(class_abbrv,x = x, width = avail_per)
+# 
+#   if (short_vis) {
+# 
+#     top_half <- lapply(x[est_cols], `[`, seq_len(n))
+#     top_half <- lapply(top_half, function(x) {
+#       if(inherits(x, "list"))
+#         format(x, width = avail_per)
+#       else
+#         format(x)
+#     })
+# 
+#     rows <- format(c("", seq_len(n)))
+#     colon <- format(c("", rep(": ", n)))
+# 
+#     out <- c(list(paste0(seq_len(n), rep(":  ", n))), top_half)
+#     out <- mapply(function(x,y,z){c(x,y,z)}, c("",col_nms), c("", col_cls), out, SIMPLIFY = F) |> lapply(format, justify = "right")
+#     cat(do.call("paste",args = c(out, sep = " ", collapse = "\n")),"\n")
+#     return()
+#   }
+# 
+#   dat_vis <- lapply(x[est_cols], `[`, seq_len(if(short_vis) n else n %/% 2))
+# 
+#   lst <- vector('list', length(dat_vis))
+#   nms <- names(dat_vis)
+#   for (i in seq_len(max(est_cols))) {
+#     dat <- dat_vis[[i]]
+#     if (inherits(dat, 'list')) {
+#       dat <- format(dat, width = min(c(width, nchar(header))))
+#     } else {
+#       dat <- format(dat)
+#     }
+#     lst[[i]] <- format(c(nms[i], dat))
+#   }
+# 
+# 
+#   rows <- format(c("", paste0(rownames(dat_vis))))
+#   colon <- format(c("", rep(": ", nrow(dat_vis))))
+# 
+# 
+#   out <- c(list(paste0(rows, colon)), lst)
+#   out[[length(out)]] <- paste0(out[[length(out)]],"\n")
+# 
+#   chr <- do.call(paste, c(out, list(sep = " ")))
+# 
+#   cat(chr, sep ="")
+#   if (nrows>nrow(dat_vis)){
+#     cat("...\n")
+#   }
+# 
+# 
+# }
 
 
 format.list <- function(x, ..., width = 6) {
