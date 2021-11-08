@@ -85,8 +85,8 @@ bable <- function(..., .class = NULL) {
 
 
 
-
-print.bable <- function(x, n = 12, width = 50, min = 4, max = 10) {
+#' @export
+print.bable <- function(x, n = 12, width = 100, min = 4, max = 10) {
 
   format(x, n, width)
 
@@ -94,7 +94,7 @@ print.bable <- function(x, n = 12, width = 50, min = 4, max = 10) {
 
 
 format.bable <- function(x, n = 12, width = 80L) {
-  
+
   .dim <- dim(x)
   .obs <- .dim[1L]
   .col <- .dim[2L]
@@ -103,16 +103,16 @@ format.bable <- function(x, n = 12, width = 80L) {
       " observation", if(.obs>1L) "s" else "",
       " and ", .col, " column",
       if(.col>1L) "s" else "", "\n", sep = "")
-  
-  
+
+
   short_vis <- FALSE
   if (.obs <= n) {
-    short_vs <- TRUE
+    short_vis <- TRUE
     n <- .obs
   }
-  
+
   lst <- as.list(x)
-  
+
   if (short_vis) {
     data_sub <- lst
     .rows <- format(c("","", paste0(seq_len(n), ": ")), justify = "right")
@@ -129,26 +129,26 @@ format.bable <- function(x, n = 12, width = 80L) {
                         ":"
                       )), justify = "right")
   }
-  
+
   w_avail <- width - max(nchar(.rows)) - 1L
-  
+
   out <- list()
-  
+
   for (i in seq_len(.col)) {
     out[[.nms[i]]] <- format(c(.nms[i], class_abbrv(data_sub[[i]]),
                   format(data_sub[[i]], justify = "right")), justify = "right")
     w_avail <- w_avail - max(nchar(out[[i]])) - 2L
-    
+
     if (w_avail < 0) {
       out <- out[-length(out)]
       break
     }
   }
-  
-  
-  
+
+
+
   body <- c(list(.rows), out)
-  
+
   if (!short_vis) {
     body <- lapply(body,
                    function(x, after) {
@@ -157,11 +157,11 @@ format.bable <- function(x, n = 12, width = 80L) {
                             justify = "centre")},
                    after = head_n + 2L)
   }
-  
+
   body <- do.call("paste", c(body, list(sep = "  ", collapse = "\n")))
-  
+
   cat(body, "\n")
-  
+
   footer_data <- data_sub[setdiff(.nms, names(out))]
   .remain <- length(footer_data)
   if (.remain > 0) {
@@ -170,10 +170,10 @@ format.bable <- function(x, n = 12, width = 80L) {
                 paste(names(footer_data), vapply(footer_data, class_abbrv, character(1)), collapse = ", "))
     cat(footer, "\n")
   }
-  
-  
+
+
   invisible(x)
-  
+
 }
 
 
@@ -183,17 +183,24 @@ format.list <- function(x, ..., width = 6) {
   vapply(x, class_abbrv, FUN.VALUE = character(1), width = width)
 }
 
-
+#' @export
 class_abbrv <- function(x, ...) {
   UseMethod("class_abbrv")
 }
 
+#' @export
 class_abbrv.default <- function(x, width = 6L) paste0("<",abbreviate(class(x)[1L], minlength = width-2L),">")
+#' @export
 class_abbrv.double <- function(x, ...) "<dbl>"
+#' @export
 class_abbrv.integer <- function(x, ...) "<int>"
+#' @export
 class_abbrv.factor <- function(x, ...) "<fct>"
+#' @export
 class_abbrv.character <- function(x, ...) "<chr>"
+#' @export
 class_abbrv.list <- function(x, ...) "<lst>"
+#' @export
 
 
 

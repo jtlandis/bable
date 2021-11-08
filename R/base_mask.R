@@ -9,7 +9,7 @@ data_mask <- function(.data, .env = parent.frame()){
   mid <- new.env(parent = bot)
   list2env(
     x = list(across = function(.cols = everything(), .fns = NULL, ..., .names = NULL) {
-      
+
       if (is.null(.fns)) {
         return()
       } else if (is.function(.fns)) {
@@ -23,13 +23,13 @@ data_mask <- function(.data, .env = parent.frame()){
       cols <- do.call('eval_select', list(.cols, as.list(top, T, T)))
       n_col <- length(cols)
       n_fun <- length(.fns)
-      
+
       n_cols <- length(cols)
       n_funs <- length(.fns)
       col_nm <- names(cols)
-      
+
       .names <- substitute(.names)
-      
+
       .names <- if (is.null(fn_nms)&&is.null(.names))
         col_nm
       else {
@@ -49,13 +49,55 @@ data_mask <- function(.data, .env = parent.frame()){
           k <- k + 1L
         }
       }
-      
-      
+
+
     }),
     envir = mid)
   top <- new.env(parent = mid)
   list2env(.data, top)
   top
+}
+
+eval_mask <- function(.mask, .dots, .names) {
+  for( i in seq_along(.dots)) {
+    if (is.na(.names[i]))
+      eval(.dots[[i]], envir = .mask)
+    else
+      eval(substitute(`<-`(.x, .y), list(.x = .names[i], .y = .dots[[i]])), envir = .mask)
+  }
+  return(.mask)
+}
+
+make_groups <- function(...) {
+  x <- do.call("paste", list(..., sep = "|"))
+  m <- match(x, unique(x))
+  return(m)
+
+}
+
+make_indices <- function(x) {
+  #on <- as.integer(as.factor(on))
+  N <- length(x)
+  if (is.character(x)) {
+    x <- match(x, unique(x))
+  }
+  x_sorted <- sort(x, index.return = T)
+  lgl <- x_sorted$x[-1L] != x_sorted$x[-N]
+  indx <- c(which(lgl), N)
+  len <- diff(c(0L, indx))
+  #keys <- x_sorted$x[indx]
+
+  start <- cumsum(c(0L, len[-length(indx)]))
+
+  return(Cindicies(x_sorted$ix, start, len))
+
+
+}
+
+#' @export
+#' @useDynLib bable Cindicies_
+Cindicies <- function(ind, starts, len) {
+  .Call(Cindicies_, ind, starts, len)
 }
 
 mutate2 <- function(.data, ...) {
@@ -70,12 +112,12 @@ mutate2 <- function(.data, ...) {
     else
       eval(substitute(`<-`(.x, .y), list(.x = .names[i], .y = dots[[i]])), envir = mask)
   }
-  
+
   res <- as.list(mask, T, T)
-  
+
   attr(res, "row.names") <- .set_row_names(.n)
   class(res) <- "data.frame"
   return(res)
-  
+
 }
 

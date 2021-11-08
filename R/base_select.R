@@ -2,7 +2,7 @@
 
 eval_select <- function(expr, data) {
   mask <- new_select_mask(data)
-  expr <- substitute(expr)
+  expr <- force(expr)
   vals <- eval(expr, envir = mask)
   return(vals)
 }
@@ -127,7 +127,7 @@ set_union <- function(x, y) {
   vec <- c(x, y[y_i])
   names(vec) <- c(names(x), names(y)[y_i])
   vec
-  
+
 }
 
 set_intersect <- function(x, y) {
