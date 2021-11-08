@@ -5,7 +5,7 @@ data_mask <- function(.data, .env = parent.frame()){
   .env <- force(.env)
   .data <- as.list(.data)
   bot <- new.env(parent = .env)
-  list2env(list(.data = .data, .env = .env, .fn_across), envir = bot)
+  list2env(list(.data = .data, .env = .env, .fn_across = NULL), envir = bot)
   mid <- new.env(parent = bot)
   list2env(
     x = list(across = function(.cols = everything(), .fns = NULL, ..., .names = NULL) {
