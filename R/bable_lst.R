@@ -3,7 +3,7 @@
 
 #' @export
 `[.bable` <- function(x, i, j, by, drop = FALSE) {
-  browser()
+  
   n_arg <- nargs()
 
   if (n_arg == 1L) return(x)
@@ -14,23 +14,12 @@
   i_arg <- substitute(i)
   j_arg <- substitute(j)
   by_arg <- substitute(by)
-
+  inplace <- FALSE
   if (i_miss <- missing(i))
     i <- i_arg <- NULL
 
   if (j_miss <- missing(j))
     j <- j_arg <- NULL
-
-  if (by_miss <- missing(by)) {
-    if (is.null(attr(x, "by"))) {
-      by <- by_arg <- NULL
-    } else {
-      by_indx <- attr(x, "by_indices")
-    }
-  } else {
-    by_indx <- do.call('make_groups', out[,eval_select(by_arg, out)])
-  }
-
 
   # performing a select ----
   if (n_arg <= 2L) {
@@ -38,6 +27,48 @@
     out <- out[,i]
     return(as_bable(out))
   }
+  #browser()
+  if (by_miss <- missing(by)) {
+    if (is.null(attr(x, "by"))) {
+      by_indx <- by <- by_arg <- NULL
+      mask <- data_mask(x, .env = env)
+    } else {
+      by_indx <- attr(x, "by_indices")
+      .indicies <- make_indices(by_indx)
+      mask <- .indicies |>
+        lapply(function(i,x) x[i,], x = out) |>
+        lapply(data_mask, .env = env)
+    }
+  } else {
+    by_indx <- do.call('make_groups', out[,eval_select(by_arg, out)])
+    .indicies <- make_indices(by_indx)
+    mask <- .indicies |>
+      lapply(function(i,x) x[i,], x = out) |>
+      lapply(data_mask, .env = env)
+  }
+  n_groups <- max(by_indx)
+  keep_names <- orig_names <- names(out)
+  if (!i_miss) {
+    if (is_list(mask)) {
+      res_i <- vector("list", length = max(by_indx))
+      for (ii in seq_len(n_groups)) {
+        res_i[[ii]] <- eval(i_arg, mask[[ii]])
+        for (nm in orig_names)
+          eval(substitute(.x <- .x[.i], list(.x = as.name(nm), .i = res_i[[ii]])), mask[[ii]])
+        eval(substitute(.data <- .data[.i,], list(.i = res_i[[ii]])), env_parent(mask[[ii]], 2L))
+
+      } 
+    } else {
+      i <- eval(i_arg, mask)
+      for (nm in orig_names)
+        eval(substitute(.x <- .x[.i], list(.x = as.name(nm), .i = i)), mask)
+      eval(substitute(.data <- .data[.i,], list(.i = i)), env_parent(mask, 2L))
+    } 
+  }
+  
+
+
+  
 
   # Inplace Operation `:=` on J
   # or evaluating results of J
@@ -46,70 +77,52 @@
     # performing a mutate of sorts
     # - cols are retained
     if (is_call(j_arg, ":=")) {
+      inplace <- TRUE
 
-      dots <- j_arg[-1L]
-      .names <- names(dots)
-      if (!by_miss) {
-        .indices <- make_indices(by_indx)
-        masks <- lapply(.indices, function(i,x) x[i,], x = out) |>
-          lapply(data_mask, .env = env)
-        masks <- lapply(masks, eval_mask, .dots = .dots, .names = .names)
+      dots <- as.list(j_arg[-1L])
+      .names <- names(dots) %||% character(length(dots))
+      if (is_list(mask)) {
+        mask <- lapply(mask, eval_mask, .dots = dots, .names = .names)
       } else {
-        .n <- length(out[[1L]])
-        .mask <- data_mask(.data, env)
-        .mask <- eval_mask(.mask, .dots, .names)
+        mask <- eval_mask(mask, dots, .names)
       }
-
+      keep_names <- set_union(orig_names, ls(mask, sorted = F, all.names = TRUE))
+      
+      # performing some kind of
+      # selection/summary/transmute
+    } else if (is_call(j_arg, c("list", "."))) {
+      browser()
+      dots <- as.list(j_arg[-1L])
+      .names <- names(dots) %||% character(length(dots))
+      mask <- eval_mask(mask, dots, .names)
+      .lgl <- vapply(dots, length, integer(1L)) == 1L
+      .names[.lgl] <- vapply(dots[.lgl], deparse1, character(1L))
+      keep_names <- set_union(.names[nchar(.names)>0], set_diff(ls(mask[[1L]], sorted = TRUE, all.names = TRUE), orig_names))
     }
-    # performing some kind of
-    # selection/summary/transmute
-
     else {
-
+      j_res <- eval(j_arg, mask)
+      as_bable(j_res)
       }
   }
-  # if j is missing and not i
-  # performing a filter
-  else if (!i_miss) {
-    .names <- names(out)
-    if (!by_miss) {
-      .indices <- make_indices(by_indx)
 
-      out <- lapply(.indices, function(i,x) x[i,], x = out)
-      masks <- lapply(out, data_mask, .env = env)
-      for (i in seq_along(out)) {
-        out[[i]] <- out[[i]][eval(i_arg, masks[[i]]),]
-      }
-      # out <- mapply(function(m, out, i_arg){
-      #   out[eval(substitute(i_arg), m),]
-      # }, masks, out, MoreArgs = list(i = i_arg), SIMPLIFY = F)
-      .m <- length(out[[1L]])
-      out <- lapply(seq_len(.m), function(i) {
-        do.call("c",lapply(out, `[[`, i))
-      })
 
-      attr(out, "row.names") <- .set_row_names(length(out[[1L]]))
-      class(out) <- c("bable", "data.frame")
-      names(out) <- .names
-      return(out)
 
+  if (inplace && (!i_miss)) {
+    if (is_list(mask)) {
+      .ii <- unlist(mapply(`[`, .indices, res_i, SIMPLIFY = F))
+      out[.ii, keep_names] <- lapply(keep_names, function(x, m) { do.call('c', lapply(m, `[[`, x)) }, m = mask)
     } else {
-      .mask <- data_mask(out, env)
-      i <- eval(i_arg, .mask)
-      out <- out[i,]
-      return(as_bable(out))
+      .ii <- unlist(mapply(`[`, .indices, res_i, SIMPLIFY = F))
+      out[.ii, keep_names] <- lapply(keep_names, function(x, m) { m[[x]] }, m = mask)
     }
-
+  } else {
+    if (is_list(mask)) {
+      out <- lapply(keep_names, function(x, m) { do.call('c', lapply(m, `[[`, x)) }, m = mask)
+    } else {
+      out <- lapply(keep_names, function(x, m) { m[[x]] }, m = mask)
+    }
   }
-
-
-
-
-  if (!j_miss && is_call(j_arg, c(".","list"))) {
-
-  }
-
-  mask <- data_mask(out, env)
+  
   attr(out, "row.names") <- .set_row_names(length(out[[1L]]))
   class(out) <- cl
   out
@@ -133,12 +146,12 @@ as_bable.data.frame <- function(x, .class = NULL, ...) {
   x
 }
 
-#' @export
+
 as_bable_lst <- function(x) {
   UseMethod("as_bable_lst")
 }
 
-#' @export
+
 as_bable_lst.data.frame <- function(x) {
   class(x) <- c("bable_lst", "list")
   attr(x, "row.names") <- NULL

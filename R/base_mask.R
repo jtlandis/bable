@@ -9,7 +9,7 @@ data_mask <- function(.data, .env = parent.frame()){
   mid <- new.env(parent = bot)
   list2env(
     x = list(across = function(.cols = everything(), .fns = NULL, ..., .names = NULL) {
-
+      browser()
       if (is.null(.fns)) {
         return()
       } else if (is.function(.fns)) {
@@ -20,7 +20,7 @@ data_mask <- function(.data, .env = parent.frame()){
       }
       dots <- as.list(substitute(.(...))[-1L])
       .cols <- substitute(.cols)
-      cols <- do.call('eval_select', list(.cols, as.list(top, T, T)))
+      cols <- eval_select(.cols, as.list(top, T, T))
       n_col <- length(cols)
       n_fun <- length(.fns)
 
@@ -49,6 +49,8 @@ data_mask <- function(.data, .env = parent.frame()){
           k <- k + 1L
         }
       }
+      
+      on.exit(substitute(poke_names(.n, .i), list(.n = .names, .i = quote(i))))
 
 
     }),
@@ -59,11 +61,28 @@ data_mask <- function(.data, .env = parent.frame()){
 }
 
 eval_mask <- function(.mask, .dots, .names) {
-  for( i in seq_along(.dots)) {
-    if (is.na(.names[i]))
-      eval(.dots[[i]], envir = .mask)
-    else
-      eval(substitute(`<-`(.x, .y), list(.x = .names[i], .y = .dots[[i]])), envir = .mask)
+  setup_names(length(.dots))
+  if (is_list(.mask)) {
+    seq_m <- seq_along(.mask)
+    for (i in seq_along(.dots)) {
+      for (j in seq_m) {
+        if (nchar(.names[i])==0) {
+          eval(.dots[[i]], envir = .mask[[j]])
+        } else {
+          eval(substitute(`<-`(.x, .y), list(.x = .names[i], .y = .dots[[i]])), envir = .mask[[j]])
+          poke_name(.names[i], i)
+        }
+      }
+    }
+  } else {
+    for (i in seq_along(.dots)) {
+      if (nchar(.names[i])==0) {
+        eval(.dots[[i]], envir = .mask)
+      } else {
+        eval(substitute(`<-`(.x, .y), list(.x = .names[i], .y = .dots[[i]])), envir = .mask)
+        poke_name(.names[i], i)
+      }
+    }
   }
   return(.mask)
 }
